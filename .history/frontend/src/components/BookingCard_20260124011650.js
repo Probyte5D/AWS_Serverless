@@ -23,4 +23,3 @@ export default function BookingCard({ booking }) {
     </div>
   );
 }
-//blu/azzurre (highlight) sono solo le prenotazioni nei prossimi 7 giorni.

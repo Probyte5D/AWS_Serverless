@@ -8,6 +8,19 @@ import dotenv from "dotenv";
 dotenv.config();
 
 /* =========================
+   DEBUG INIZIALE
+========================= */
+console.log("=== AWS CONFIG ===");
+console.log("REGION:", process.env.AWS_REGION);
+console.log(
+  "ACCESS KEY:",
+  process.env.AWS_ACCESS_KEY_ID
+    ? process.env.AWS_ACCESS_KEY_ID.slice(0, 6) + "****"
+    : "MISSING"
+);
+console.log("==================");
+
+/* =========================
    CONFIGURAZIONE AWS SDK
 ========================= */
 AWS.config.update({
@@ -36,24 +49,23 @@ async function seed() {
     const today = new Date();
 
     for (let i = 1; i <= 200; i++) {
-      // Genera date casuali tra -7 e +7 giorni rispetto ad oggi
-      const randomOffset = Math.floor(Math.random() * 15) - 7; // -7 .. +7
+      // Genera date casuali tra -15 e +15 giorni rispetto ad oggi
+      const randomOffset = Math.floor(Math.random() * 31) - 15; // -15 .. +15
       const bookingDate = new Date(today);
       bookingDate.setDate(today.getDate() + randomOffset);
 
       const booking = {
-        bookingId: `B${i}`,                     // PK Bookings
-        guestId: `G${i}`,                       // FK verso Guests
+        bookingId: `B${i}`,
+        guestId: `G${i}`,
         bookingDate: bookingDate.toISOString().split("T")[0], // YYYY-MM-DD
       };
 
       const guest = {
-        guestId: `G${i}`,                       // PK Guests
+        guestId: `G${i}`,
         guestName: `Guest ${i}`,
         email: `guest${i}@example.com`,
       };
 
-      // Inserimento in DynamoDB
       await dynamo.put({ TableName: GUESTS_TABLE, Item: guest }).promise();
       await dynamo.put({ TableName: BOOKINGS_TABLE, Item: booking }).promise();
 
