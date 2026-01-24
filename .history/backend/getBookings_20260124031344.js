@@ -1,5 +1,5 @@
-// BACKEND - getBookings.js
-// Query efficiente delle prenotazioni negli ultimi 7 giorni usando GSI pk + bookingDate
+// BACKEND - getBookings.js (Lambda)
+// Query efficiente delle prenotazioni negli ultimi 7 giorni usando GSI con partition key fissa
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand, BatchGetCommand } from "@aws-sdk/lib-dynamodb";
@@ -27,23 +27,21 @@ export const handler = async (event) => {
     const limit = body?.limit || 50;
     const lastKey = body?.lastKey || undefined;
 
-    // Calcolo range date: 7 giorni fa → 7 giorni avanti
+    // 7 giorni fa e 7 giorni avanti
     const now = new Date();
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 7);
-    const sevenDaysFuture = new Date(now);
-    sevenDaysFuture.setDate(now.getDate() + 7);
+    const sevenDaysAgo = new Date(now); sevenDaysAgo.setDate(now.getDate() - 7);
+    const sevenDaysFuture = new Date(now); sevenDaysFuture.setDate(now.getDate() + 7);
 
     const startDate = sevenDaysAgo.toISOString().split("T")[0]; // YYYY-MM-DD
     const endDate = sevenDaysFuture.toISOString().split("T")[0];
 
-    // Query sul GSI pk + bookingDate
+    // Partition key fissa "allBookings" + bookingDate come sort key
     const queryParams = {
       TableName: BOOKINGS_TABLE,
-      IndexName: "BookingDateIndex", // il nuovo GSI con pk + bookingDate
+      IndexName: "BookingDateIndex",
       KeyConditionExpression: "pk = :pk AND bookingDate BETWEEN :start AND :end",
       ExpressionAttributeValues: {
-        ":pk": "allBookings",
+        ":pk": "allBookings", // valore fisso della partition key del GSI
         ":start": startDate,
         ":end": endDate
       },

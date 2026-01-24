@@ -1,5 +1,5 @@
-// BACKEND - getBookings.js
-// Query efficiente delle prenotazioni negli ultimi 7 giorni usando GSI pk + bookingDate
+// BACKEND - getBookings.js (Lambda)
+// Query efficiente delle prenotazioni negli ultimi 7 giorni usando GSI con partition key fissa
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand, BatchGetCommand } from "@aws-sdk/lib-dynamodb";
@@ -27,25 +27,20 @@ export const handler = async (event) => {
     const limit = body?.limit || 50;
     const lastKey = body?.lastKey || undefined;
 
-    // Calcolo range date: 7 giorni fa → 7 giorni avanti
+    // Calcolo date 7 giorni fa e 7 giorni avanti
     const now = new Date();
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 7);
-    const sevenDaysFuture = new Date(now);
-    sevenDaysFuture.setDate(now.getDate() + 7);
+    const sevenDaysAgo = new Date(now); sevenDaysAgo.setDate(now.getDate() - 7);
+    const sevenDaysFuture = new Date(now); sevenDaysFuture.setDate(now.getDate() + 7);
 
-    const startDate = sevenDaysAgo.toISOString().split("T")[0]; // YYYY-MM-DD
-    const endDate = sevenDaysFuture.toISOString().split("T")[0];
-
-    // Query sul GSI pk + bookingDate
+    // Query sul GSI BookingDateIndex con partition key fissa
     const queryParams = {
       TableName: BOOKINGS_TABLE,
-      IndexName: "BookingDateIndex", // il nuovo GSI con pk + bookingDate
+      IndexName: "BookingDateIndex",          // il GSI deve avere pk come partition key
       KeyConditionExpression: "pk = :pk AND bookingDate BETWEEN :start AND :end",
       ExpressionAttributeValues: {
-        ":pk": "allBookings",
-        ":start": startDate,
-        ":end": endDate
+        ":pk": "allBookings",                 // partition key fissa
+        ":start": sevenDaysAgo.toISOString(),
+        ":end": sevenDaysFuture.toISOString()
       },
       Limit: limit,
       ExclusiveStartKey: lastKey
@@ -54,7 +49,7 @@ export const handler = async (event) => {
     const bookingsData = await dynamo.send(new QueryCommand(queryParams));
     let bookings = bookingsData.Items || [];
 
-    // Arricchimento dati guest
+    // Arricchimento con dati ospite
     const guestIds = bookings.map(b => ({ guestId: b.guestId })).filter(g => g.guestId);
     if (guestIds.length > 0) {
       const batchParams = { RequestItems: { [GUESTS_TABLE]: { Keys: guestIds } } };
