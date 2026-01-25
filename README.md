@@ -20,7 +20,135 @@ Lambda ed Api
 ![lambda](./images/lambdafunct.png)
 ![lambda](./images/lambdafunct2.png)
 
+Architettura e Scelte Tecniche
+DynamoDB e Global Secondary Index (GSI)
 
+La tabella Bookings utilizza un Global Secondary Index (GSI) progettato per supportare query temporali efficienti:
+
+pk (partition key): valore fisso (allBookings)
+
+bookingDate (sort key)
+
+Questa struttura consente di eseguire query mirate su intervalli di date, evitando operazioni di Scan costose e poco scalabili, migliorando sia le performance sia i costi di utilizzo di DynamoDB.
+
+Filtro temporale
+
+Il backend restituisce esclusivamente le prenotazioni comprese in un intervallo di ±7 giorni rispetto alla data corrente.
+
+Questo approccio permette di:
+
+ridurre la dimensione del payload restituito
+
+limitare il numero di item letti da DynamoDB
+
+diminuire il carico di elaborazione sul frontend
+
+Backend – getBookings.js
+Funzionalità principali
+
+Query DynamoDB tramite GSI, ottimizzata per accesso per data
+
+Paginazione lato backend mediante:
+
+Limit
+
+ExclusiveStartKey
+
+Recupero dati guest con BatchGet
+
+una singola chiamata DynamoDB per ottenere tutti i guest associati alle prenotazioni
+
+Arricchimento dei risultati
+
+ogni booking viene associata ai dati del relativo guest
+
+Compressione gzip della risposta
+
+riduzione significativa della dimensione del payload
+
+miglioramento delle performance di rete
+
+Compatibilità con API Gateway
+
+risposta codificata in base64
+
+header Content-Encoding: gzip
+
+Compressione gzip
+
+Il flusso di risposta del backend è il seguente:
+
+serializzazione dei dati in formato JSON
+
+compressione tramite zlib.gzipSync
+
+codifica in base64 (richiesta da API Gateway)
+
+restituzione della risposta con header:
+
+Content-Encoding: gzip
+
+
+Questa strategia consente di:
+
+migliorare i tempi di risposta
+
+ridurre i costi di trasferimento dati
+
+aumentare la stabilità dell’applicazione in presenza di payload medi o grandi
+
+Sicurezza AWS – Evoluzione
+Fase 1 – Sviluppo locale
+
+Nella fase iniziale di sviluppo sono state utilizzate le seguenti variabili di ambiente:
+
+AWS_ACCESS_KEY_ID
+
+AWS_SECRET_ACCESS_KEY
+
+AWS_REGION
+
+Definite nel file .env, esclusivamente per:
+
+popolamento di DynamoDB tramite script di seed
+
+test locali
+
+validazione della logica applicativa
+
+Questa configurazione è stata utilizzata solo in ambiente di sviluppo e non è mai stata esposta al frontend.
+
+Fase 2 – Produzione (Best Practice)
+
+In ambiente di produzione il backend utilizza un approccio basato su IAM Role, in linea con le best practice AWS:
+
+IAM Role associato direttamente alla funzione Lambda
+
+Policy configurata secondo il principio del least privilege
+
+Permessi concessi esclusivamente per:
+
+operazioni DynamoDB:
+
+Query
+
+BatchGetItem
+
+GetItem
+
+risorse autorizzate:
+
+tabella Bookings
+
+tabella Guests
+
+In questa configurazione:
+
+nessuna Secret Key è presente nel codice
+
+nessuna credenziale è esposta
+
+l’autenticazione avviene automaticamente tramite IAM Role
 
 ## 📂 **Struttura del progetto**
 
@@ -44,134 +172,102 @@ progetto/
    └─ ...
 
 ---
-Fase 1 – Configurazione iniziale con Secret Key (sviluppo)
-
-In una prima fase, l’accesso ad AWS è stato configurato tramite:
-
-AWS_ACCESS_KEY_ID
-
-AWS_SECRET_ACCESS_KEY
-
-AWS_REGION
-
-Queste credenziali erano definite nel file .env e utilizzate direttamente nel codice backend (seed.js, test locali)
-
-Questa configurazione è stata usata solo in fase di sviluppo e testing locale, per popolare DynamoDB, validare la logica applicativa, testare le query prima del deploy
-
-Fase 2 – Migrazione a IAM Role su AWS Lambda (produzione) Successivamente, il backend è stato migrato a una configurazione più sicura e best practice, utilizzando: IAM Role associato direttamente alla Lambda Policy con permessi minimi (least privilege)
-
-La Lambda dispone ora di un IAM Role con accesso esplicito alle sole risorse necessarie:
-
-Tabella Bookings
-
-Tabella Guests
-
-Operazioni DynamoDB:
-
-Query
-
-BatchGetItem
-
-GetItem
-
-In questa configurazione nessuna Secret Key è presente nel codice nessuna credenziale è esposta nel frontend l’autenticazione avviene automaticamente tramite il ruolo IAM della Lambda
-
-Compatibilità e versioni
-
-La versione con Secret Key è ancora disponibile per sviluppo locale
-
-La versione con IAM Role è quella attualmente in uso in produzione
-
-Il codice è stato mantenuto compatibile con entrambe le modalità
-
-🛠️ Prerequisiti 
+🛠️ Prerequisiti
 
 Node.js v18+
 
-AWS Account con DynamoDB
+AWS Account
 
-Tabelle DynamoDB: Bookings e Guests
+DynamoDB
 
-AWS IAM User con chiavi di accesso (Access Key ID e Secret Key)
+AWS Lambda
 
-AWS Lambda e API Gateway configurati
-⚙️ Setup Backend 
+API Gateway
 
-Installare dipendenze:
+Tabelle DynamoDB
 
+Bookings
+
+Guests
+
+⚙️ Setup Backend (sviluppo locale)
 cd backend
 npm install
 
-Creare file .env con le credenziali AWS:
+
+Creare .env:
 
 AWS_ACCESS_KEY_ID=TUO_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY=TUO_SECRET_ACCESS_KEY
 AWS_REGION=eu-north-1
 
-Popolare DynamoDB con dati di test:
+
+Popolare il database:
 
 node seed.js
 
-Deploy su AWS Lambda:
 
-Carica getBookings.js come funzione Lambda.
+Deploy:
 
-Configura API Gateway per invocare la Lambda tramite POST /getBookings.
+caricare getBookings.js su AWS Lambda
+
+configurare API Gateway → POST /getBookings
 
 ⚡ Setup Frontend
-
-Installare dipendenze:
-
 cd frontend
 npm install
-
-Avviare frontend React:
-
 npm start
 
-La dashboard sarà disponibile su http://localhost:3000.
 
-🚀 Funzionamento principale
+Dashboard disponibile su:
+👉 http://localhost:3000
 
-Backend (getBookings.js)
+🔄 Flusso Applicativo
+Backend
 
-Paginazione: usa Limit e ExclusiveStartKey per caricare blocchi di prenotazioni.
+Query bookings paginata
 
-Filtro date: prende solo prenotazioni ±7 giorni rispetto ad oggi.
+Filtro date ±7 giorni
 
-BatchGet guest: recupera tutti i guest dei bookings in un’unica chiamata.
+BatchGet guest
 
-LastKey: restituisce chiave per caricare la pagina successiva.
+Restituzione lastKey
 
-Frontend (bookingsSlice.js + BookingList.js)
+Frontend
 
-fetchBookings(lastKey) richiama il backend Lambda e aggiorna lo store Redux.
+fetchBookings(lastKey)
 
-state.list accumula le prenotazioni ricevute.
+Accumulo prenotazioni in Redux
 
-Bottone Load More carica le pagine successive tramite lastKey.
+Bottone Load More
 
-🛠️ Problemi risolti
+Rendering progressivo
+
+🛠️ Problemi Risolti
 Problema	Soluzione
-Payload troppo grande (HTTP 413)	Backend carica prenotazioni a blocchi con Limit + ExclusiveStartKey
-Troppe chiamate a DynamoDB per guest	BatchGet per recuperare tutti i guest in una chiamata
-Prenotazioni fuori range di date	Filtro ±7 giorni rispetto a oggi
-Frontend crash quando action.payload.bookings undefined	Fallback `action.payload.bookings	
-	[]`
+HTTP 413 Payload Too Large	Paginazione backend + gzip
+Troppe query guest	BatchGet DynamoDB
+Query lente	GSI su bookingDate
+Prenotazioni non rilevanti	Filtro ±7 giorni
+Crash Redux	Fallback `bookings
 🧪 Testing
 
-Avvia il backend (Lambda + API Gateway).
+Avvia backend (Lambda + API Gateway)
 
-Avvia il frontend React.
+Avvia frontend React
 
-Apri la dashboard → vedrai le prime 50 prenotazioni.
+Apri dashboard
 
-Premi Load More per caricare le successive.
+Carica pagine successive con Load More
 
-Controlla la console backend per eventuali errori DynamoDB.
+Verifica CloudWatch logs
 
-📌 Note
+📌 Note Finali
 
-Assicurati che backend (Lambda) e frontend siano entrambi attivi per far funzionare la dashboard.
+Il backend è stateless e scalabile
 
-La paginazione lato backend previene payload troppo grandi e ottimizza le chiamate a DynamoDB.
+Le query DynamoDB sono ottimizzate per costo e performance
+
+Il progetto segue best practice AWS reali, non solo demo
+
+Struttura pensata per estensione futura (auth, filtri avanzati, caching)

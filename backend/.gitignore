@@ -24,3 +24,6 @@ frontend/node_modules/.cache/
 backend/node_modules/.cache/
 
 .history/
+.history/
+*.env_*
+*.gitignore_*
