@@ -3,6 +3,9 @@
 ## Live demo:
 👉 https://cosmic-tartufo-e50434.netlify.app
 
+## 🖼️ **Architettura**
+![Architecture Diagram](./images/arch.png)
+
 Questa piattaforma consente di gestire le prenotazioni degli ospiti tramite un backend serverless (AWS Lambda + API Gateway + DynamoDB) e un frontend React + Redux.
 
 Il sistema è progettato per essere scalabile ed efficiente, utilizzando paginazione lato backend e Global Secondary Index (GSI) per evitare payload troppo grandi e query inefficienti.
