@@ -1,4 +1,4 @@
-# Property Management Platform / Admin Dashboard
+# AWS Serverless Booking Engine & Data Optimizer
 
 ## Live demo:
 👉 https://cosmic-tartufo-e50434.netlify.app
@@ -6,199 +6,132 @@
 ## 🖼️ **Architettura**
 ![Architecture Diagram](./images/arch.png)
 
-Questa piattaforma consente di gestire le prenotazioni degli ospiti tramite un backend serverless (AWS Lambda + API Gateway + DynamoDB) e un frontend React + Redux.
+Questa piattaforma gestisce flussi di prenotazioni tramite un backend serverless (AWS Lambda + API Gateway + DynamoDB) e un frontend React + Redux. 
 
-Il sistema è progettato per essere scalabile ed efficiente, utilizzando paginazione lato backend e Global Secondary Index (GSI) per evitare payload troppo grandi e query inefficienti.
+Il sistema è progettato per scalabilità estrema, utilizzando paginazione server-side e Global Secondary Index (GSI) per eliminare colli di bottiglia e ottimizzare i costi operativi.
+
 ---
 
 ## 🖼️ **Anteprima Dashboard**
 ![Dashboard Preview](./images/gif.gif)
+
 ---
-Panoramica db
-![DYNAMODB](./images/image1.png)
-![DYNAMODB](./images/image2.png)
+
+Panoramica db  
+![DYNAMODB](./images/image1.png)  
+![DYNAMODB](./images/image2.png)  
 ![Dynamodb](./images/index.png)
-Lambda ed Api
-![Creazione api](./images/gatewayapi.png)
-![lambda](./images/lambdafunct.png)
+
+Lambda ed Api  
+![Creazione api](./images/gatewayapi.png)  
+![lambda](./images/lambdafunct.png)  
 ![lambda](./images/lambdafunct2.png)
 
 👉 [Scarica la Documentazione Tecnica Completa (PDF)](./docs/ProjectAWS.pdf)
 
-Architettura e Scelte Tecniche
-DynamoDB e Global Secondary Index (GSI)
+---
+
+## Architettura e Scelte Tecniche
+
+### DynamoDB e Global Secondary Index (GSI)
 
 La tabella Bookings utilizza un Global Secondary Index (GSI) progettato per supportare query temporali efficienti:
 
-pk (partition key): valore fisso (allBookings)
-
-bookingDate (sort key)
+- pk (partition key): valore fisso (allBookings)
+- bookingDate (sort key)
 
 Questa struttura consente di eseguire query mirate su intervalli di date, evitando operazioni di Scan costose e poco scalabili, migliorando sia le performance sia i costi di utilizzo di DynamoDB.
 
-Filtro temporale
+---
+
+### Filtro temporale
 
 Il backend restituisce esclusivamente le prenotazioni comprese in un intervallo di ±7 giorni rispetto alla data corrente.
 
-Questo approccio permette di:
+Benefici:
 
-ridurre la dimensione del payload restituito
+- riduzione della dimensione del payload
+- limitazione degli item letti
+- minore carico sul frontend
 
-limitare il numero di item letti da DynamoDB
+---
 
-diminuire il carico di elaborazione sul frontend
+### Backend – getBookings.js
 
-Backend – getBookings.js
-Funzionalità principali
+Funzionalità principali:
 
-Query DynamoDB tramite GSI, ottimizzata per accesso per data
+- Query DynamoDB tramite GSI
+- Paginazione lato server (Limit, ExclusiveStartKey)
+- Recupero guest tramite BatchGet
+- Arricchimento risultati con dati correlati
+- Compressione gzip della risposta
 
-Paginazione lato backend mediante:
+Vantaggi:
 
-Limit
+- miglioramento performance
+- riduzione costi
+- payload ottimizzato
+- stabilità con dataset grandi
 
-ExclusiveStartKey
+---
 
-Recupero dati guest con BatchGet
+### Sicurezza AWS
 
-una singola chiamata DynamoDB per ottenere tutti i guest associati alle prenotazioni
+#### Sviluppo locale
+Credenziali in `.env` utilizzate solo per:
 
-Arricchimento dei risultati
+- seed database
+- test locali
+- validazione logica
 
-ogni booking viene associata ai dati del relativo guest
+#### Produzione (IAM Role)
+Accesso tramite role con:
 
-Compressione gzip della risposta
+- least privilege
+- permessi limitati
+- nessuna credenziale hardcoded
 
-riduzione significativa della dimensione del payload
+---
 
-miglioramento delle performance di rete
+## 📂 Struttura del progetto
 
-Compatibilità con API Gateway
-
-risposta codificata in base64
-
-header Content-Encoding: gzip
-
-Compressione gzip
-
-Il flusso di risposta del backend è il seguente:
-
-serializzazione dei dati in formato JSON
-
-compressione tramite zlib.gzipSync
-
-codifica in base64 (richiesta da API Gateway)
-
-restituzione della risposta con header:
-
-Content-Encoding: gzip
-
-
-Questa strategia consente di:
-
-migliorare i tempi di risposta
-
-ridurre i costi di trasferimento dati
-
-aumentare la stabilità dell’applicazione in presenza di payload medi o grandi
-
-Sicurezza AWS – Evoluzione
-Fase 1 – Sviluppo locale
-
-Nella fase iniziale di sviluppo sono state utilizzate le seguenti variabili di ambiente:
-
-AWS_ACCESS_KEY_ID
-
-AWS_SECRET_ACCESS_KEY
-
-AWS_REGION
-
-Definite nel file .env, esclusivamente per:
-
-popolamento di DynamoDB tramite script di seed
-
-test locali
-
-validazione della logica applicativa
-
-Questa configurazione è stata utilizzata solo in ambiente di sviluppo e non è mai stata esposta al frontend.
-
-Fase 2 – Produzione (Best Practice)
-
-In ambiente di produzione il backend utilizza un approccio basato su IAM Role, in linea con le best practice AWS:
-
-IAM Role associato direttamente alla funzione Lambda
-
-Policy configurata secondo il principio del least privilege
-
-Permessi concessi esclusivamente per:
-
-operazioni DynamoDB:
-
-Query
-
-BatchGetItem
-
-GetItem
-
-risorse autorizzate:
-
-tabella Bookings
-
-tabella Guests
-
-In questa configurazione:
-
-nessuna Secret Key è presente nel codice
-
-nessuna credenziale è esposta
-
-l’autenticazione avviene automaticamente tramite IAM Role
-
-## 📂 **Struttura del progetto**
 
 progetto/
 │
 ├─ backend/
-│  ├─ getBookings.js       # Lambda function per leggere bookings da DynamoDB con paginazione e batchGet guests
-│  ├─ seed.js              # Script opzionale per popolare DynamoDB con dati di test
-│  ├─ package.json
-│  └─ .env                 # Credenziali AWS (Access Key, Secret Key, Region)
+│ ├─ getBookings.js
+│ ├─ seed.js
+│ ├─ package.json
+│ └─ .env
 │
 └─ frontend/
-   ├─ src/
-   │  ├─ redux/
-   │  │  └─ bookingsSlice.js  # Redux slice con fetchBookings e gestione paginazione
-   │  ├─ components/
-   │  │  └─ BookingList.js    # Componente React per visualizzare bookings
-   │  ├─ App.js
-   │  └─ ... altri componenti
-   ├─ package.json
-   └─ ...
+├─ src/
+├─ components/
+└─ ...
+
 
 ---
-🛠️ Prerequisiti
 
-Node.js v18+
+## 🛠️ Prerequisiti
 
-AWS Account
+- Node.js v18+
+- AWS Account
+- DynamoDB
+- AWS Lambda
+- API Gateway
 
-DynamoDB
+Tabelle:
 
-AWS Lambda
+- Bookings
+- Guests
 
-API Gateway
+---
 
-Tabelle DynamoDB
+## ⚙️ Setup Backend
 
-Bookings
-
-Guests
-
-⚙️ Setup Backend (sviluppo locale)
+```bash
 cd backend
 npm install
-
 
 Creare .env:
 
@@ -206,95 +139,82 @@ AWS_ACCESS_KEY_ID=TUO_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY=TUO_SECRET_ACCESS_KEY
 AWS_REGION=eu-north-1
 
-
-Popolare il database:
+Popolare database:
 
 node seed.js
 
-
 Deploy:
 
-caricare getBookings.js su AWS Lambda
+Lambda: getBookings.js
 
-configurare API Gateway → POST /getBookings
+API Gateway: POST /getBookings
 
 ⚡ Setup Frontend
 cd frontend
 npm install
 npm start
 
+Dashboard:
 
-Dashboard disponibile su:
 👉 http://localhost:3000
 
 🔄 Flusso Applicativo
-Backend
 
-Query bookings paginata
+Backend:
 
-Filtro date ±7 giorni
+query paginata
 
-BatchGet guest
+filtro temporale
 
-Restituzione lastKey
+batch get guest
 
-Frontend
+lastKey per continuazione
 
-fetchBookings(lastKey)
+Frontend:
 
-Accumulo prenotazioni in Redux
+fetch con lastKey
 
-Bottone Load More
+Redux store
 
-Rendering progressivo
+load more
+
+rendering progressivo
 
 🛠️ Problemi Risolti
 Problema	Soluzione
-HTTP 413 Payload Too Large	Paginazione backend + gzip
-Troppe query guest	BatchGet DynamoDB
-Query lente	GSI su bookingDate
-Prenotazioni non rilevanti	Filtro ±7 giorni
-Crash Redux	Fallback `bookings
+Payload troppo grande	paginazione + gzip
+Troppe query guest	BatchGet
+Query lente	GSI
+Dataset non rilevante	filtro
+Crash UI	gestione paginazione
 🧪 Testing
 
-Avvia backend (Lambda + API Gateway)
+Deploy backend
 
-Avvia frontend React
+Avvia frontend
 
-Apri dashboard
+Naviga dashboard
 
-Carica pagine successive con Load More
+Load more
 
-Verifica CloudWatch logs
+Verifica logs
 
 📌 Note Finali
 
-Il backend è stateless e scalabile
+backend stateless
 
-Le query DynamoDB sono ottimizzate per costo e performance
+query ottimizzate
 
-Il progetto segue best practice AWS reali, non solo demo
+best practice AWS
 
-Struttura pensata per estensione futura (auth, filtri avanzati, caching)
+architettura estensibile
+
+License
+
 MIT License
 
+Copyright (c) 2026 Primula Robustelli
 
-Copyright (c) 2026 [Primula Robustelli]
+Permission is granted to use this software for personal demonstration purposes.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Commercial use, redistribution, or modification is not permitted without authorization.
